@@ -101,7 +101,7 @@
     "lodash-es": "^4.17.21",
     "loglevel": "^1.9.1",
     "matrix-js-sdk": "github:matrix-org/matrix-js-sdk#64e27f5d3cdab6aafeb7c22f1264416ffa72b83f",
-    "matrix-widget-api": "1.11.0",
+    "matrix-widget-api": "1.13.1",
     "normalize.css": "^8.0.1",
     "observable-hooks": "^4.2.3",
     "pako": "^2.0.4",
@@ -131,7 +131,7 @@
   },
   "resolutions": {
     "@livekit/components-core/rxjs": "^7.8.1",
-    "matrix-widget-api": "1.11.0"
+    "matrix-widget-api": "1.13.1"
   },
   "packageManager": "yarn@4.7.0"
 }
