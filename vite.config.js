@@ -84,8 +84,8 @@ export default defineConfig(({ mode, packageType }) => {
       port: 3000,
       fs: { allow },
       https: {
-        key: fs.readFileSync("./backend/dev_tls_m.localhost.key"),
-        cert: fs.readFileSync("./backend/dev_tls_m.localhost.crt"),
+        key: fs.readFileSync("./backend/avatochat-serve-host/dev_key.pem"),
+        cert: fs.readFileSync("./backend/avatochat-serve-host/dev_crt.pem"),
       },
     },
     build: {

@@ -1,0 +1,119 @@
+networks:
+  ecbackend:
+
+services:
+  auth-service:
+    image: ghcr.io/element-hq/lk-jwt-service:latest-ci
+    hostname: auth-server
+    environment:
+      - LK_JWT_PORT=8080
+      - LIVEKIT_URL=wss://matrix-rtc.m.localhost/livekit/sfu
+      - LIVEKIT_KEY=devkey
+      - LIVEKIT_SECRET=secret
+      # If the configured homeserver runs on localhost, it'll probably be using
+      # a self-signed certificate
+      - LIVEKIT_INSECURE_SKIP_VERIFY_TLS=YES_I_KNOW_WHAT_I_AM_DOING
+    deploy:
+      restart_policy:
+        condition: on-failure
+    ports:
+      # HOST_PORT:CONTAINER_PORT
+      - 8080:8080
+    networks:
+      - ecbackend
+
+  livekit:
+    image: livekit/livekit-server:latest
+    hostname: livekit-sfu
+    command: --dev --config /etc/livekit.yaml
+    restart: unless-stopped
+    # The SFU seems to work far more reliably when we let it share the host
+    # network rather than opening specific ports (but why?? we're not missing
+    # any…)
+    ports:
+      # HOST_PORT:CONTAINER_PORT
+      - 7880:7880/tcp
+      - 7881:7881/tcp
+      - 7882:7882/tcp
+      - 50100-50200:50100-50200/udp
+    volumes:
+      - ./backend/avatochat-server/dev_livekit.yaml:/etc/livekit.yaml:Z
+    networks:
+      - ecbackend
+
+  element-web:
+    image: ghcr.io/element-hq/element-web:develop
+    volumes:
+      - ./backend/avatochat-server/ew.test.config.json:/app/config.json
+    environment:
+      ELEMENT_WEB_PORT: 81
+    ports:
+      - "8081:81"
+    networks:
+      - ecbackend
+
+  nginx:
+    #  see backend/dev_tls_setup for how to generate the tls certs
+    hostname: synapse.m.localhost
+    image: nginx:latest
+    volumes:
+      - ./backend/avatochat-server/dev_nginx.conf:/etc/nginx/conf.d/default.conf:Z
+      - ./backend/avatochat-server/dev_tls_m.localhost.key:/root/ssl/key.pem:Z
+      - ./backend/avatochat-server/dev_tls_m.localhost.crt:/root/ssl/cert.pem:Z
+    ports:
+      # HOST_PORT:CONTAINER_PORT
+      - "80:80"
+      - "443:443"
+      - "8008:80"
+      - "4443:443"
+      - "8448:8448"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - synapse
+    networks:
+      - ecbackend
+
+  synapse:
+    hostname: homeserver
+    build:
+      context: backend/avatochat-server
+      dockerfile: Dockerfile
+      network: host
+    environment:
+      CONDUWUIT_SERVER_NAME: synapse.m.localhost # EDIT THIS
+      CONDUWUIT_DATABASE_PATH: /var/lib/conduwuit
+      CONDUWUIT_PORT: 8008
+      CONDUWUIT_MAX_REQUEST_SIZE: 20000000 # in bytes, ~20 MB
+      CONDUWUIT_ALLOW_REGISTRATION: 'true'
+      # CONDUWUIT_REGISTRATION_TOKEN: 'TOKEN' # A registration token is required when registration is allowed.
+      CONDUWUIT_YES_I_AM_VERY_VERY_SURE_I_WANT_AN_OPEN_REGISTRATION_SERVER_PRONE_TO_ABUSE: 'true'
+      CONDUWUIT_ALLOW_FEDERATION: 'true'
+      CONDUWUIT_ALLOW_CHECK_FOR_UPDATES: 'true'
+      CONDUWUIT_TRUSTED_SERVERS: '["matrix.org"]'
+      #CONDUWUIT_LOG: warn,state_res=warn
+      CONDUWUIT_ADDRESS: 0.0.0.0
+      CONDUWUIT_WELL_KNOWN: |
+        {
+        client=https://synapse.m.localhost,
+        livekit_service_url=https://matrix-rtc.m.localhost/livekit/jwt
+        }
+    networks:
+      - ecbackend
+
+  # synapse:
+  #   hostname: homeserver
+  #   image: docker.io/matrixdotorg/synapse:latest
+  #   environment:
+  #     - SYNAPSE_CONFIG_PATH=/data/cfg/homeserver.yaml
+  #     # Needed for rootless podman-compose such that the uid/gid mapping does
+  #     # fit local user uid. If the container runs as root (uid 0) it is fine as
+  #     # it actually maps to your non-root user on the host (e.g. 1000).
+  #     # Otherwise uid mapping will not match your non-root user.
+  #     - UID=0
+  #     - GID=0
+  #   volumes:
+  #     - ./backend/avatochat-server/synapse_tmp:/data:Z
+  #     - ./backend/avatochat-server/dev_homeserver.yaml:/data/cfg/homeserver.yaml:Z
+  #   networks:
+  #     - ecbackend
